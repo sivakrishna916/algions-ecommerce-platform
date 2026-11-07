@@ -4,6 +4,8 @@ const cors = require('cors');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const env = require('./config/env');
+const swaggerUi = require('swagger-ui-express');
+const openapi = require('./docs/openapi');
 const { notFoundHandler, errorHandler } = require('./middleware/error');
 
 function createApp() {
@@ -22,10 +24,14 @@ function createApp() {
       message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many attempts, try again later' } } }));
   }
 
+  app.get('/api/docs.json', (_req, res) => res.json(openapi));
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi, { customSiteTitle: 'Algions E-Commerce API' }));
+
   app.use('/api/auth', require('./routes/auth'));
   app.use('/api/catalog', require('./routes/catalog'));
   app.use('/api/cart', require('./routes/cart'));
   app.use('/api/orders', require('./routes/orders'));
+  app.use('/api/admin', require('./routes/admin'));
 
   app.use(notFoundHandler);
   app.use(errorHandler);
