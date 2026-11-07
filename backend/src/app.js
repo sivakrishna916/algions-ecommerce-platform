@@ -23,6 +23,7 @@ function createApp() {
   }
 
   app.use('/api/auth', require('./routes/auth'));
+  app.use('/api/catalog', require('./routes/catalog'));
 
   app.use(notFoundHandler);
   app.use(errorHandler);
