@@ -24,6 +24,8 @@ function createApp() {
 
   app.use('/api/auth', require('./routes/auth'));
   app.use('/api/catalog', require('./routes/catalog'));
+  app.use('/api/cart', require('./routes/cart'));
+  app.use('/api/orders', require('./routes/orders'));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

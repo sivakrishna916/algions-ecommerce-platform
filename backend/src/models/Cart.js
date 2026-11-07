@@ -14,6 +14,7 @@ const cartSchema = new mongoose.Schema(
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
     items: { type: [cartItemSchema], default: [] },
     couponCode: { type: String, uppercase: true, trim: true },
+    checkoutLockedAt: { type: Date }, // short-lived lock: one checkout per cart at a time
   },
   { timestamps: true }
 );
