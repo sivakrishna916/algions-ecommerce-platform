@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Pulse Wireless Earbuds">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#374151"/><stop offset="1" stop-color="#374151" stop-opacity=".62"/></linearGradient></defs>
+<rect width="400" height="400" fill="url(#g)"/><circle cx="330" cy="70" r="120" fill="#fff" opacity=".07"/><circle cx="60" cy="350" r="150" fill="#000" opacity=".08"/>
+<circle cx="150" cy="170" r="40" fill="#ffffff"/><rect x="140" y="190" width="20" height="90" rx="10" fill="#ffffff"/><circle cx="250" cy="170" r="40" fill="#ffffff" opacity=".85"/><rect x="240" y="190" width="20" height="90" rx="10" fill="#ffffff" opacity=".85"/>
+</svg>

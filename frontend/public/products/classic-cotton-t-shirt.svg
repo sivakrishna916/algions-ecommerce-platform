@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Classic Cotton T-Shirt">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#be123c"/><stop offset="1" stop-color="#be123c" stop-opacity=".62"/></linearGradient></defs>
+<rect width="400" height="400" fill="url(#g)"/><circle cx="330" cy="70" r="120" fill="#fff" opacity=".07"/><circle cx="60" cy="350" r="150" fill="#000" opacity=".08"/>
+<path d="M140 80 90 120l36 44 22-16v152h104V148l22 16 36-44-50-40c-10 22-34 34-60 34s-50-12-60-34z" fill="#ffffff" opacity=".93"/>
+</svg>

@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  :focus-visible { outline: 2px solid #4f46e5; outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+}
+
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800; }
+  .btn-secondary { @apply btn border border-slate-300 bg-white text-ink-700 hover:bg-slate-50; }
+  .btn-danger { @apply btn bg-rose-600 text-white hover:bg-rose-700; }
+  .btn-ghost { @apply btn text-ink-700 hover:bg-slate-100; }
+  .btn-sm { @apply px-3 py-1.5 text-xs; }
+  .input { @apply block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-ink-900 placeholder:text-slate-400 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200 disabled:bg-slate-100; }
+  .input-error { @apply border-rose-400 focus:border-rose-500 focus:ring-rose-200; }
+  .card { @apply rounded-2xl border border-slate-200 bg-white shadow-card; }
+  .container-page { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
+  .skeleton { @apply animate-pulse rounded-lg bg-slate-200; }
+  .th { @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-ink-500; }
+  .td { @apply px-4 py-3 text-sm text-ink-700; }
+}

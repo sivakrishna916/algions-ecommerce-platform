@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Aero 14 Laptop">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#475569"/><stop offset="1" stop-color="#475569" stop-opacity=".62"/></linearGradient></defs>
+<rect width="400" height="400" fill="url(#g)"/><circle cx="330" cy="70" r="120" fill="#fff" opacity=".07"/><circle cx="60" cy="350" r="150" fill="#000" opacity=".08"/>
+<rect x="90" y="110" width="220" height="140" rx="12" fill="#111827"/><rect x="102" y="122" width="196" height="116" rx="4" fill="#ffffff" opacity=".92"/><path d="M60 262h280l-24 28H84z" fill="#ffffff" opacity=".85"/>
+</svg>
