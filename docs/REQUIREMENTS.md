@@ -53,7 +53,7 @@ Source of truth: ALGIONS AI LABS Internship Project Assessment, E-Commerce Platf
 
 | Item | Status |
 |---|---|
-| Source repository (frontend, backend, schema, seed) | Local git repository with real history; **not pushed anywhere** (no remote configured). You must create the GitHub repository, set the remote and push |
+| Source repository (frontend, backend, schema, seed) | DONE: GitHub repository created and `main` branch pushed: https://github.com/sivakrishna916/algions-ecommerce-platform |
 | README with architecture, setup, env vars, credentials, DB setup, test commands, limitations | DONE |
 | Architecture and schema diagram | DONE (`docs/ER_DIAGRAM.md`, Mermaid; renders on GitHub) |
 | API documentation | DONE (Swagger UI `/api/docs`, `/api/docs.json`) |
@@ -63,7 +63,7 @@ Source of truth: ALGIONS AI LABS Internship Project Assessment, E-Commerce Platf
 | Live demo URL | NOT DONE: nothing was deployed. Deployment steps are in the README, otherwise declare "local-only demo" in the form |
 | 3 to 5 minute video | NOT DONE: script in `docs/DEMO_SCRIPT.md`; you must record it |
 | Form: name, registration number, university email, AI and attribution, declarations | NOT DONE: yours to fill in, honestly |
-| Reviewer access and working links | NOT DONE: check after pushing |
+| Reviewer access and working links | NOT DONE: verify repository access for the reviewer and check all submitted links before submission |
 
 ## E. Master-prompt extras
 

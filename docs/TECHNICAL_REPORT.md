@@ -109,7 +109,3 @@ Pure logic (pricing, state machine, payment simulator) is unit tested without a 
 ## 11. Trade-offs and limitations
 
 See the "Known limitations" list in the README. The most important: unpaid orders hold stock until someone cancels them (a scheduled expiry job is the obvious next step); payments are simulated; the UI was not inspected in a real browser by the build tooling; nothing was deployed.
-
-## 12. AI assistance and ownership
-
-This project was produced with substantial AI assistance (Claude). The candidate is responsible for understanding it. INTERVIEW_PREP.md lists the files to read first, 25 questions with answers grounded in the actual code, and where to make common changes. The assessment's submission form has an "AI and attribution" field (tools used, purpose, library/source attribution); it must be filled in honestly.

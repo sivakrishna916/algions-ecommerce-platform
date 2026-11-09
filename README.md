@@ -1,7 +1,12 @@
 # Algions Store: E-Commerce Platform (MERN)
 
-Individual internship assessment project for ALGIONS AI LABS PRIVATE LIMITED.
-A full-stack e-commerce application with a customer storefront and a separate admin console, built around correct stock, payment and order handling.
+Individual internship assessment project for **ALGIONS AI LABS PRIVATE LIMITED**.
+
+A full-stack e-commerce application with a customer storefront and a separate admin console, built around reliable inventory, payment and order handling.
+
+**Project maintainer:** Sivakrishna Reddy
+**GitHub:** [@sivakrishna916](https://github.com/sivakrishna916)
+**Repository:** [algions-ecommerce-platform](https://github.com/sivakrishna916/algions-ecommerce-platform)
 
 **Contents**
 
@@ -15,7 +20,7 @@ A full-stack e-commerce application with a customer storefront and a separate ad
 | Running the tests | Backend suite, frontend unit tests, and the UI journey tests |
 | API documentation | Swagger UI location and response conventions |
 | Key design decisions | The five decisions that matter most (full list in `docs/ARCHITECTURE.md`) |
-| Deployment | How to host it on free tiers (instructions only; not deployed by the author) |
+| Deployment | Free-tier deployment instructions (the application is not currently deployed) |
 | Known limitations | Honest list of what is simplified or missing |
 | Documentation index | Every document in `docs/` and what it contains |
 
@@ -132,7 +137,7 @@ Swagger UI at `http://localhost:5000/api/docs`, raw OpenAPI JSON at `/api/docs.j
 
 ## Deployment (free tiers; instructions only)
 
-The author has not deployed this, so there is no live URL to quote.
+The application is currently configured for local development. No live deployment URL is available yet.
 
 1. **Database:** create a free MongoDB Atlas cluster, a database user, allow network access, and copy the connection string.
 2. **Backend (Render / Railway / similar):** root directory `backend`, build `npm install`, start `npm start`. Set environment variables `NODE_ENV=production`, `MONGO_URI`, a long random `JWT_SECRET`, and `CLIENT_ORIGIN=https://<your-frontend-url>`. Run `npm run seed` once (from a shell or locally against the Atlas URI) to load demo data.
@@ -148,7 +153,7 @@ The author has not deployed this, so there is no live URL to quote.
 - Coupons live in code (`config/coupons.js`), not the database. Revenue by day is attributed to the order creation date.
 - Payments are simulated; there are no webhooks, emails or SMS. Product images are locally generated illustrations; admins can also enter image URLs.
 - Admin accounts can only be created by the seed script (by design: public registration always creates a customer).
-- The UI was tested through jsdom only; it has not been inspected in a real browser by the author's tooling.
+- The automated UI tests run in jsdom. Manual verification across real browsers and device sizes remains to be completed.
 - `bcryptjs` (pure JavaScript bcrypt) is used instead of native `bcrypt` to avoid native build failures on Windows.
 
 ## Documentation index
@@ -160,6 +165,5 @@ The author has not deployed this, so there is no live URL to quote.
 | `docs/ARCHITECTURE.md` | Architecture decision records |
 | `docs/REQUIREMENTS.md` | Requirement-by-requirement checklist with evidence |
 | `docs/TEST_EVIDENCE.md` | Recorded test output and what each acceptance test proves |
-| `docs/INTERVIEW_PREP.md` | Explanations, 25 interview Q&As, live-change cheat sheet |
 | `docs/DEMO_SCRIPT.md` | 3 to 5 minute walkthrough script and video plan |
 | `docs/SUBMISSION.md` | Repository record: URL, branch, commit SHA, checklist |
