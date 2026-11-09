@@ -62,6 +62,8 @@ async function attemptPayment(order, user, paymentInput) {
   if (!paid) {
     // Lost a race (order was cancelled while we were charging): give the money back immediately.
     await Payment.updateOne({ _id: payment._id }, { status: 'REFUNDED', refundedAt: new Date() });
+    // Keep the order record consistent with its payment record (otherwise reconciliation would flag a mismatch).
+    await Order.updateOne({ _id: order._id, status: 'CANCELLED' }, { paymentStatus: 'REFUNDED' });
     const current = await Order.findById(order._id);
     throw conflict('ORDER_NOT_PAYABLE', `Order is ${current.status} and can no longer be paid; the charge was reversed`);
   }
@@ -235,4 +237,4 @@ async function getForUser(user, orderId) {
   return { order, payments, allowed: { cancel: sm.canCancel('customer', order.status), pay: order.status === 'PLACED' } };
 }
 
-module.exports = { checkout, pay, cancel, adminSetStatus, listForUser, getForUser, transition };
+module.exports = { checkout, pay, cancel, adminSetStatus, listForUser, getForUser, transition, attemptPayment };
