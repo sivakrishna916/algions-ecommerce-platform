@@ -14,10 +14,16 @@ const card = z.object({
   method: z.literal('card'),
   number: z.string().transform((s) => s.replace(/[\s-]/g, '')).pipe(
     z.string().regex(/^\d{13,19}$/, 'Card number must be 13–19 digits').refine(luhnValid, 'Card number is invalid')),
-  expiry: z.string().regex(/^(0[1-9]|1[0-2])\/\d{2}$/, 'Expiry must be MM/YY'),
+  expiry: z.string().regex(
+  /^(0[1-9]|1[0-2])\/\d{2}$/,
+  'Expiry must be MM/YY'
+),
   cvv: z.string().regex(/^\d{3,4}$/, 'CVV must be 3 or 4 digits'),
 });
-const upi = z.object({ method: z.literal('upi'), vpa: z.string().trim().regex(/^[\w.\-]{2,}@[a-zA-Z]{2,}$/, 'Enter a valid UPI id (name@bank)') });
+const upi = z.object({ method: z.literal('upi'), vpa: z.string().trim().regex(
+  /^[\w.-]{2,}@[a-zA-Z]{2,}$/,
+  'Enter a valid UPI id (name@bank)'
+) });
 const payment = z.discriminatedUnion('method', [card, upi]);
 
 const checkout = z.object({ addressId: objectId, payment });
