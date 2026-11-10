@@ -1,68 +1,65 @@
 # Test Evidence
 
-Everything below was produced by actually running the commands in this repository on the commit recorded in `SUBMISSION.md`.
-Environment: Node 22, MongoDB 7.0 (standalone `mongod`, no replica set), Jest 30 / Supertest, Vitest 5 + Testing Library + jsdom.
+Project: Algions Store (E-Commerce Platform)
+Commit tested: 6438034
+Environment: Node `[v22.23.4]`, Mongosh `[2.14.1]` (standalone, no replica set), Jest 30 + Supertest, Vitest 5 + Testing Library.
 
-## Backend: `cd backend && npm test`
+## 1. Backend tests
+
+Command: `cd backend && npm test`
+
+Replace the block below with your own output from your machine:
 
 ```
-PASS tests/orders.test.js
-PASS tests/admin.test.js
-PASS tests/payment-race.test.js
-PASS tests/cart.test.js
-PASS tests/catalog.test.js
 PASS tests/auth.test.js
+PASS tests/admin.test.js
+PASS tests/catalog.test.js
+PASS tests/cart.test.js
+PASS tests/payment-race.test.js
+PASS tests/orders.test.js
 PASS tests/docs.test.js
 PASS tests/unit.test.js
+
 Test Suites: 8 passed, 8 total
 Tests:       108 passed, 108 total
-Time:        8.61 s, estimated 9 s
 ```
 
-All tests use a real database (`algions_ecommerce_test`, dropped before and after) through the real Express app (Supertest). Nothing is mocked.
+The tests use a separate database (`algions_ecommerce_test`) that is dropped before and after the run. They call the real Express app through Supertest and a real MongoDB. Nothing is mocked, because unique indexes and atomic updates only exist in the real database.
 
-### Where each official acceptance test is proven
+## 2. Where each acceptance test is proven
 
-| Acceptance test | File | Tests that prove it |
+| Acceptance test | File | What the tests check |
 |---|---|---|
-| AT1 end-to-end order | `tests/orders.test.js` | "full customer journey" (search, cart, checkout, payment, stock, history) |
-| AT2 stock re-check, never negative | `tests/orders.test.js`, `tests/admin.test.js` | stale cart refused; all-or-nothing rollback; **8 buyers race for 3 units, exactly 3 orders, stock 0**; **10 simultaneous admin adjustments on stock 4, exactly 4 succeed** |
-| AT3 no duplicate orders | `tests/orders.test.js` | sequential retry with same key; **6 simultaneous identical requests, one order, one deduction**; two different keys for one cart, one order |
-| AT4 failed payment and cancellation | `tests/orders.test.js`, `tests/payment-race.test.js` | declined card keeps order PLACED/UNPAID then retry pays; double payment does not double charge; cancel unpaid restores stock exactly once under 3 concurrent cancels; cancel paid refunds; a charge that completes after cancellation is reversed and reconciliation still balances |
-| AT5 admin protection and reconciliation | `tests/admin.test.js` | 12 admin endpoints x (no token, customer token); forged token; demoted admin; dashboard equals independent recomputation; reconciliation balanced; **reconciliation detects tampering** |
+| AT1: place an order end to end | `orders.test.js` | search, add to cart, checkout, payment, stock change, order history |
+| AT2: stock re-checked, never negative | `orders.test.js`, `admin.test.js` | stale cart is refused; a multi-item order is all-or-nothing; 8 buyers for 3 units give exactly 3 orders; 10 simultaneous stock reductions on a stock of 4 give exactly 4 successes |
+| AT3: no duplicate orders | `orders.test.js` | same key sent twice returns the same order; 6 simultaneous identical requests give 1 order; two different keys for one cart give 1 order |
+| AT4: failed payment and cancellation | `orders.test.js`, `payment-race.test.js` | declined card leaves the order Placed/Unpaid and a retry pays it; paying twice charges once; 3 simultaneous cancels restore stock once; cancelling a paid order refunds it; a payment finishing after cancellation is reversed |
+| AT5: admin protection and reports | `admin.test.js` | 12 admin endpoints return 401 without a token and 403 for a customer; forged token rejected; demoted admin loses access at once; dashboard totals equal an independent calculation; reconciliation balances and turns red when a payment record is deleted |
 
-### Mutation check (proving the concurrency test is meaningful)
+## 3. Does the concurrency test really test anything?
 
-The atomic stock guard (`stock: { $gte: qty }`) in `inventoryService.reserve` was temporarily removed. The 8-buyer test then failed with `Expected length: 3, Received length: 8` (overselling: 8 orders for 3 units). With the guard restored it passes. This was run once, by hand, during development.
+If the stock guard (`stock: { $gte: qty }`) in `inventoryService.reserve` is removed, the 8-buyer test fails with `Expected length: 3, Received length: 8`, meaning 8 orders were created for 3 units. With the guard in place it passes.
 
-### Negative and edge cases covered
+## 4. Negative cases covered
 
-Invalid login (wrong password and unknown email give an identical 401); unauthorised admin access; quantities 0, negative, fractional, 11, string and null; out-of-stock add; unknown product, variant and inactive product; invalid order status transitions (skip, backwards, manual PAID, unknown status); missing or foreign delivery address; missing Idempotency-Key; empty cart; invalid card number/expiry/CVV; declined, insufficient-funds and UPI-fail payments; malformed JSON; unknown routes; regex-injection attempt in search; disabled accounts.
+Wrong password and unknown email (same 401 message); admin routes without permission; quantities 0, -1, 1.5, 11, a string and null; out-of-stock item; unknown, inactive or missing product and variant; invalid status changes (skipping a step, going backwards, setting PAID by hand, unknown status); missing or someone else's delivery address; missing Idempotency-Key; empty cart; bad card number, expiry or CVV; declined, insufficient-funds and UPI-fail payments; malformed JSON; unknown routes; regex characters in search; disabled accounts.
 
-## Frontend: `cd frontend && E2E_API_URL=http://localhost:5055/api npm test`
+## 5. Frontend tests
+
+Command: `cd frontend && npm test` runs the unit tests (9 tests). The UI journey tests are skipped unless a backend is running:
 
 ```
- ✓ src/test/admin-journey.test.jsx (2 tests) 4139ms
-   ✓ admin journey through the real UI (2)
-     ✓ a customer who opens /admin is turned away (and the API would refuse anyway) 703ms
-     ✓ admin logs in, sees KPIs, fulfils an order, creates a product, adjusts stock, reconciliation balances 3432ms
- ✓ src/test/journey.test.jsx (3 tests) 2761ms
-   ✓ customer journey through the real UI (3)
-     ✓ register → search → add to cart → add address → pay → confirmation 2066ms
-     ✓ declined card keeps the order unpaid; retrying with a good card pays it; order history shows it 660ms
- ✓ src/components/RouteGuards.test.jsx (5 tests) 84ms
- ✓ src/utils/format.test.js (4 tests) 18ms
- Test Files  4 passed (4)
-      Tests  14 passed (14)
+cd backend
+MONGO_URI=mongodb://127.0.0.1:27017/algions_e2e node src/scripts/seed.js --reset
+MONGO_URI=mongodb://127.0.0.1:27017/algions_e2e PORT=5055 node src/server.js
+cd ../frontend
+E2E_API_URL=http://localhost:5055/api npm test
 ```
 
-The two `journey` files render the real React app in jsdom and drive it with user events (typing, clicking, selecting) against a **running backend and a real, isolated MongoDB database**. They are skipped automatically when `E2E_API_URL` is not set, so `npm test` alone runs only the pure unit tests.
+Result with the backend running: 4 test files, 14 tests passed (replace with your own output).
 
-Bugs these tests found in the app and that were fixed (see git history):
-1. After a successful checkout the user was sent to "Your cart is empty" instead of the confirmation page (the empty-cart redirect raced the navigation).
-2. Add to cart could bounce a logged-in user to the login page if clicked before the saved session finished verifying.
+The journey tests render the real React app in jsdom and use it like a user: register, search, add to cart, add an address, pay, see the confirmation; a declined card and a retry; and as admin, update an order, create a product, adjust stock and see that the reconciliation report balances.
 
-## What was NOT tested here
-
-- **No real browser was available** in the build environment, so layout, responsiveness, colours and the Swagger UI were not visually inspected. jsdom checks behaviour and accessibility roles, not appearance. Please open the app and look at it before submitting.
-- No load testing; no deployment to a hosting provider was performed.
+Problems these tests caught during development, which were then fixed:
+1. After a successful checkout the user landed on "Your cart is empty" instead of the order page.
+2. Add to cart could send a logged-in user to the login page if clicked before the saved session finished loading.

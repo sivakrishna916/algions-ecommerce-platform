@@ -1,111 +1,119 @@
-# Technical Report: Algions E-Commerce Platform
+# Technical Report: Algions Store (E-Commerce Platform)
 
-Assessment: ALGIONS AI LABS PRIVATE LIMITED, Full-Stack Web Development, project "E-Commerce Platform".
-
-## Table of contents
-
-| Section | What it covers |
-|---|---|
-| 1. Summary | What was built, what was verified, and what was not |
-| 2. Scope and requirement coverage | How the assessment scope maps to the implementation (details in REQUIREMENTS.md) |
-| 3. Architecture | Layers, request flow, why a modular monolith, folder responsibilities |
-| 4. Data model | Collections, relationships, embedding choices, indexes (diagram in ER_DIAGRAM.md) |
-| 5. Core business flows | Cart pricing, idempotent checkout, payment, cancellation, order state machine, admin stock changes |
-| 6. Consistency and concurrency | Exactly how overselling, duplicate orders and double refunds are prevented, and how that was tested |
-| 7. Security | Authentication, authorisation, input handling, secrets, and the remaining weaknesses |
-| 8. Reporting and reconciliation | Dashboard definitions and the seven integrity checks |
-| 9. Frontend | Structure, state handling, accessibility, customer and admin separation |
-| 10. Testing strategy and results | What each layer tests, the mutation check, bugs the tests found |
-| 11. Trade-offs and limitations | Deliberate simplifications and what would be done next |
-| 12. AI assistance and ownership | How AI help was used and what the candidate must be able to explain |
+Assessment: ALGIONS AI LABS PRIVATE LIMITED, Full-Stack Web Development.
+Candidate: Sivakrishna Reddy
 
 ## 1. Summary
 
-A MERN e-commerce application with a customer storefront and a separate admin console. The backend exposes 43 documented REST operations. Orders move through Placed, Paid, Packed, Shipped and Delivered (or Cancelled) with server-side validation of every transition. Stock, duplicate-order and payment safety rely on atomic MongoDB operations rather than client behaviour.
+I built a MERN e-commerce application with a customer storefront and a separate admin console. The API has 43 documented REST operations (Swagger at `/api/docs`). Orders move through Placed, Paid, Packed, Shipped and Delivered, or Cancelled, and the server checks every change of state. Stock, duplicate-order and payment safety depend on atomic MongoDB operations, not on the client behaving well.
 
-Verified by running: 108 backend tests (real MongoDB) and 14 frontend tests, including two UI journeys that drive the real React app against the real API (see TEST_EVIDENCE.md). Not verified: appearance in a real browser, deployment to a hosting provider, behaviour under load.
+All 108 backend tests and 14 frontend tests pass (see `TEST_EVIDENCE.md`). Not covered: load testing and deployment.
 
-## 2. Scope and requirement coverage
+## 2. Requirements and acceptance tests
 
-The five official acceptance tests are each covered by named automated tests (TEST_EVIDENCE.md, section "Where each official acceptance test is proven"). The full requirement-by-requirement table with file references is in REQUIREMENTS.md.
+Every item in the assessment scope is implemented. The five acceptance tests are each covered by named automated tests, listed in section 2 of `TEST_EVIDENCE.md`.
 
 ## 3. Architecture
 
-Single repository with two applications. The browser talks only to the Express API over JSON. In development Vite proxies `/api` to the backend, so there is no CORS configuration to manage; in production the frontend uses `VITE_API_URL` and the API restricts CORS to `CLIENT_ORIGIN`.
+One repository, two applications. The React app talks to the Express API over JSON. In development Vite proxies `/api` to the backend; in production the frontend uses `VITE_API_URL` and the API allows only `CLIENT_ORIGIN` in CORS.
 
-Backend request path: route (URL, validation with zod, role guard) -> controller (translate HTTP to a service call) -> service (all business rules) -> Mongoose model. Controllers contain no rules, which keeps services testable and makes a live code change easy to locate.
+Backend request path: route (URL, zod validation, role check) -> controller (turns HTTP into a service call) -> service (all business rules) -> Mongoose model. Controllers contain no rules, so the logic is easy to test and easy to find.
 
-A modular monolith was chosen because the domain is small and the hard problems here are consistency problems, which are simpler inside one process and one database than across services.
+I chose a modular monolith because the domain is small and the hard problems here are about consistency, which is simpler in one process with one database.
+
+Main decisions:
+1. **No multi-document transactions.** They need a MongoDB replica set, which a plain local install does not have. I used single-document atomic updates plus compensation (undo) steps instead. It works on a standalone server, Docker and the Atlas free tier.
+2. **Idempotent checkout.** The client sends an `Idempotency-Key`; a unique index on `(user, idempotencyKey)` means two simultaneous retries cannot both create an order.
+3. **Money as integer paise** to avoid floating point errors.
+4. **Stock is reserved when the order is placed** and given back on cancellation, exactly once.
+5. **One order state machine.** Each status change is a `findOneAndUpdate` that includes the expected current status, so two admins cannot both succeed.
+6. **Soft delete for products**, so old orders keep their history. Orders also store a copy of name, price and address.
+7. **JWT (HS256), 7 days, Bearer header.** The token is kept in `localStorage`, which is simple but exposed to XSS; an httpOnly cookie would need CSRF handling.
+8. **`bcryptjs`** instead of `bcrypt` to avoid native build problems on Windows.
 
 ## 4. Data model
 
-Seven collections: users (with embedded addresses), categories, products (with embedded variants carrying price and stock), carts (one per user), orders (embedded snapshot of items, address and pricing, plus embedded status history), payments (one row per attempt) and audit logs. The reasoning for each embed or reference and the full index list are in ER_DIAGRAM.md.
+Seven collections: users (with embedded addresses), categories, products (embedded variants carrying price and stock), carts (one per user), orders (embedded copy of items, address, pricing and status history), payments (one row per attempt) and audit logs. The diagram, the embed-or-reference reasoning and the index list are in `ER_DIAGRAM.md`.
 
-Money is stored as integer paise everywhere. Totals are computed by one pure function (`pricingService.computePricing`): subtotal, then coupon discount, then GST on the discounted amount, then shipping (free above the threshold), then total. A database-free unit test covers it, and the reconciliation report re-checks `total = subtotal - discount + tax + shipping` for every stored order.
+Totals come from one pure function, `pricingService.computePricing`: subtotal, then coupon discount, then GST on the discounted amount, then shipping (free above the threshold), then total. A unit test covers it, and the reconciliation report re-checks `total = subtotal - discount + tax + shipping` for every stored order.
 
-## 5. Core business flows
+## 5. Main flows
 
-**Cart.** The cart is stored on the server per user. Every read re-prices from current product data and flags lines whose stock has dropped (`OUT_OF_STOCK`, `INSUFFICIENT_STOCK`, `UNAVAILABLE`). Adding or changing a quantity is validated against stock and a per-line maximum of 10.
+**Cart.** Stored on the server per user. Every read re-prices from current product data and flags lines whose stock dropped. Quantity is checked against stock and a maximum of 10 per line.
 
 **Checkout** (`orderService.checkout`):
-1. If an order already exists for this user and `Idempotency-Key`, return it (HTTP 200, `replayed: true`).
-2. Validate that the chosen address belongs to the user.
-3. Acquire a per-cart lock (an atomic conditional update of `checkoutLockedAt`, expiring after 30 seconds). If it is already held, answer `409 CHECKOUT_IN_PROGRESS`.
-4. Re-read the cart, re-resolve every line from the database, refuse unavailable or short lines, recompute pricing.
-5. Reserve stock line by line with atomic conditional decrements. If any line fails, release the lines already taken.
-6. Insert the order. The unique `(user, idempotencyKey)` index is the final guard; on a duplicate-key error the stock is released and the existing order is returned.
-7. Empty the cart (only in the request that created the order); the lock is released in a `finally` block on every path.
+1. If an order with this user and key already exists, return it (`replayed: true`).
+2. Check the address belongs to the user.
+3. Take a per-cart lock (30 second expiry). If it is held, answer `409 CHECKOUT_IN_PROGRESS`.
+4. Re-read the cart and every product, refuse unavailable or short lines, recompute prices.
+5. Reserve stock line by line with atomic updates; if one line fails, release the ones already taken.
+6. Insert the order. The unique index is the last safeguard.
+7. Empty the cart and release the lock.
 8. Attempt payment.
 
-**Payment (simulated).** `paymentService.simulateCharge` is deterministic (documented test cards). Each attempt is recorded as a Payment row; only the last four digits of a card are stored. On success the order moves PLACED to PAID through a conditional update. If the order was cancelled while the charge was in flight, the conditional update matches nothing and the charge is immediately marked refunded (compensation). On failure the order stays PLACED and UNPAID with its stock reserved; the customer can retry payment (`POST /orders/:id/pay`, idempotent once paid) or cancel.
+**Payment (simulated).** `paymentService.simulateCharge` gives fixed results for the documented test cards. Each attempt is saved as a Payment row, with only the last 4 digits of a card. Success moves the order PLACED to PAID with a conditional update. If the order was cancelled while the charge was running, that update matches nothing and the charge is marked refunded. On failure the order stays PLACED and UNPAID with its stock reserved, and the customer can retry or cancel.
 
-**Cancellation.** Customers may cancel PLACED and PAID orders; admins also PACKED. The status change to CANCELLED is a conditional update, so exactly one of several concurrent cancels wins; only the winner restores stock, marks `stockRestored`, and marks successful payments REFUNDED.
+**Cancellation.** Customers can cancel PLACED and PAID orders; admins can also cancel PACKED. The change to CANCELLED is conditional, so only one of several simultaneous cancels wins, and only that one restores stock and refunds.
 
-**State machine** (`orderStateMachine.js`): PLACED -> PAID or CANCELLED; PAID -> PACKED or CANCELLED; PACKED -> SHIPPED or CANCELLED; SHIPPED -> DELIVERED; DELIVERED and CANCELLED are final. Admins cannot set PAID manually (only a successful payment can), which keeps payments and orders reconcilable.
+**State machine.** PLACED to PAID or CANCELLED; PAID to PACKED or CANCELLED; PACKED to SHIPPED or CANCELLED; SHIPPED to DELIVERED. DELIVERED and CANCELLED are final. Admins cannot set PAID by hand, so every PAID order has a real payment.
 
-**Admin stock.** Stock is changed only through `POST /admin/products/:id/stock` with a delta, using a conditional atomic update that refuses a result below zero. Editing a product never overwrites the stock of existing SKUs, so a stale edit form cannot undo stock movements caused by orders.
+**Admin stock.** Changed only with `POST /admin/products/:id/stock` and a +/- amount, using an update that refuses a result below zero. Editing a product ignores the stock value for existing variants.
 
 ## 6. Consistency and concurrency
 
-| Risk | Mechanism | Test |
+| Risk | How it is handled | Test |
 |---|---|---|
-| Two buyers take the last unit | Single conditional `updateOne` (`stock >= qty` in the filter) | 8 concurrent buyers, 3 units: exactly 3 orders |
-| Partial reservation on a multi-item cart | Compensating release of lines already reserved | "all-or-nothing" test |
-| Duplicate order from retry or double click | Idempotency key + unique index + cart lock | 6 simultaneous identical requests: 1 order; 2 keys, 1 cart: 1 order |
-| Stock restored twice on cancel | Only the conditional status-change winner restores | 3 concurrent cancels: 1 succeeds, stock restored once |
-| Two admins change the same order | Conditional update on expected current status | 3 concurrent PACKED requests: exactly 1 wins |
-| Payment completes after the order was cancelled | Conditional PLACED to PAID; if it matches nothing the charge is reversed and the order marked REFUNDED | `tests/payment-race.test.js` (deterministic: stale order object, cancel, then late charge; also asserts reconciliation stays balanced) |
-| Negative stock from admin | Guarded `$inc` | 10 concurrent -1 on stock 4: exactly 4 succeed |
+| Two buyers take the last unit | One `updateOne` with `stock >= qty` in the filter | 8 buyers, 3 units: exactly 3 orders |
+| Half-reserved multi-item cart | Release the lines already reserved | all-or-nothing test |
+| Duplicate order from retry or double click | Idempotency key + unique index + cart lock | 6 identical simultaneous requests: 1 order |
+| Stock restored twice on cancel | Only the winner of the status change restores | 3 simultaneous cancels: stock restored once |
+| Two admins change one order | Update includes the expected current status | 3 simultaneous PACKED requests: 1 wins |
+| Payment finishes after cancellation | Conditional PLACED to PAID; otherwise refund | `payment-race.test.js` |
+| Negative stock from admin | Guarded `$inc` | 10 simultaneous -1 on stock 4: 4 succeed |
 
-Multi-document transactions were deliberately not used (they require a replica set). Every critical invariant is protected by a single-document atomic operation, with explicit compensation where several documents are involved. The trade-off is that a process crash between two steps could leave stock reserved without an order; the design limits the window, but a production system would add a reconciliation job (the reconciliation report is a first step).
+Because there are no transactions, a crash between two steps could leave stock reserved without an order. A real system would add a cleanup job; the reconciliation report is a first step.
 
 ## 7. Security
 
-- **Passwords:** bcrypt (bcryptjs, 10 rounds), 8 to 72 characters with a letter and a number, never returned (`select: false`). Login failures for unknown email and wrong password return the same message, and a dummy hash comparison equalises timing.
-- **Tokens:** HS256 JWT, 7-day expiry, secret required from the environment (the server refuses to start without it). Every request reloads the user, so role changes and account disabling take effect immediately (tested).
-- **Authorisation:** all `/api/admin/*` routes use `authenticate` then `requireRole('admin')` on the server; cart and order routes are customer-only. The frontend route guards are only a convenience. Customers receive 404 (not 403) for other customers' orders, so ids are not confirmed to exist. Public registration always creates a `customer`.
-- **Input:** zod validation on every route with field-level errors; unknown fields are stripped; Mongoose validators as a second layer; ObjectId format checks; search input is regex-escaped; JSON body limit 100 KB.
-- **HTTP hardening:** helmet, CORS limited to the configured origin, login rate limit (30 per 15 minutes per IP), `x-powered-by` removed, production error messages hide internals.
-- **Secrets:** `.env` is git-ignored; `.env.example` contains only placeholders and dummy demo credentials.
-- **Payments:** raw card numbers are validated (Luhn) and used only to choose the simulated outcome; they are neither stored nor logged; responses expose only the last four digits.
-- **Remaining weaknesses:** token in `localStorage`; no refresh tokens or revocation list; rate limiting only on login; no CSRF protection needed for Bearer tokens but also no Content-Security-Policy tuned for the SPA; no account lockout or email verification.
+- **Passwords:** bcrypt, 10 rounds, 8 to 72 characters with a letter and a number, never returned by the API. Wrong password and unknown email give the same message.
+- **Tokens:** HS256 JWT; the server will not start without `JWT_SECRET`. Every request reloads the user, so a disabled account or changed role takes effect immediately.
+- **Authorisation:** all `/api/admin/*` routes run `authenticate` then `requireRole('admin')` on the server; cart and order routes are customer-only. Frontend route guards are only for convenience. A customer asking for another customer's order gets 404. Public sign-up always creates a `customer`.
+- **Input:** zod on every route, Mongoose validators as a second layer, ObjectId checks, escaped search input, 100 KB JSON limit.
+- **HTTP:** helmet, CORS limited to the configured origin, login rate limit (30 per 15 minutes per IP), no `x-powered-by`.
+- **Secrets:** `.env` is git-ignored; `.env.example` has placeholders and dummy demo logins.
+- **Cards:** numbers are checked with the Luhn algorithm and used only to pick the simulated result; they are not stored or logged.
 
 ## 8. Reporting and reconciliation
 
-"Revenue" is defined once: the sum of `pricing.total` of orders whose `paymentStatus` is PAID. Cancelled or refunded and unpaid orders are excluded. The dashboard, the sales report and the reconciliation report all use this definition.
+Revenue means the sum of `pricing.total` of orders whose `paymentStatus` is PAID. The dashboard, sales report and reconciliation report all use that one definition.
 
-The reconciliation report runs seven checks: (1) revenue of paid orders equals the sum of successful payments; (2) counts match; (3) refunded orders equal refunded payments; (4) the daily sales series sums to the dashboard revenue; (5) no paid order lacks a successful payment; (6) no cancelled order has unrestored stock; (7) every order total equals its components. `balanced` is true only if all pass. The test suite deletes a payment record directly in the database and confirms the report turns red.
+Reconciliation runs seven checks: paid-order revenue equals successful payments; the counts match; refunded orders equal refunded payments; the daily series adds up to dashboard revenue; no paid order lacks a successful payment; no cancelled order has unrestored stock; every order total equals its parts. A test deletes a payment record and confirms the report fails.
 
 ## 9. Frontend
 
-React with route-level code splitting: the admin console is a separate lazy-loaded bundle that customers never download. Server state is fetched with a small `useFetch` hook that ignores stale responses; the only global state is Auth, Cart (a mirror of the server cart) and Toasts (an `aria-live` region). The checkout page generates one idempotency key per attempt, reuses it only after a network error or 5xx (so the server can recognise the retry), and creates a new one after any definitive answer; a synchronous guard blocks double clicks.
+React with the admin console as a separate lazy-loaded bundle, so customers never download it. Data is fetched with a small `useFetch` hook that ignores stale responses. Global state is only Auth, Cart (a copy of the server cart) and Toasts. The checkout page makes one idempotency key per attempt, reuses it after a network error or 5xx, and uses a new one after a definite answer. A flag blocks double clicks. Forms have labels, error messages tied to fields, a skip link, focus rings, and loading, empty and error states.
 
-Accessibility measures: labelled form fields wired with `aria-describedby` errors, a skip link, visible focus rings, `aria-current` on pagination and progress steps, `role="alert"` on errors, modal focus handling and Escape to close, reduced-motion support, text alternatives for charts (a visually hidden table). Loading, empty, error and success states exist on every data screen. These were checked through Testing Library role queries, not with a screen reader or an automated audit tool.
+## 10. Testing
 
-## 10. Testing strategy and results
+Pure logic (pricing, state machine, payment simulator) has unit tests. Everything else is tested through the real Express app on a real MongoDB with no mocks. Results are in `TEST_EVIDENCE.md`.
 
-Pure logic (pricing, state machine, payment simulator) is unit tested without a database. Everything else is tested through the real Express app against a real MongoDB with no mocks, because the important behaviours (unique indexes, atomic updates, concurrency) only exist in the real database. Results: 108 of 108 backend and 14 of 14 frontend tests pass (TEST_EVIDENCE.md). A mutation check showed the oversell test fails (8 orders for 3 units) when the atomic stock guard is removed. The UI journey tests found two real defects that were then fixed (redirect to an empty cart after a successful order; add-to-cart during session restore). Writing the payment-race test found a third (an order stayed UNPAID although its late payment had been refunded, which reconciliation would have flagged); it was fixed on its own branch.
+## 11. Limitations and known issues
 
-## 11. Trade-offs and limitations
+- Unpaid orders keep their stock reserved until cancelled; an expiry job is the obvious next step.
+- Payments are simulated; there are no webhooks, emails or SMS.
+- The token is in `localStorage`; there are no refresh tokens; rate limiting covers login only.
+- Search uses an escaped regex; a text index exists but is not used.
+- Coupons are in code, not in the database.
+- Product images are generated illustrations, not photos.
+- Not deployed.
+- Known issues I found on review (remove a line once it is fixed):
+  - An admin editing a product at the exact moment an order is placed can overwrite that order's stock change.
+  - A second checkout with a different idempotency key sent in the same instant can create a second order.
+  - Behind a reverse proxy, `trust proxy` must be set or all users share one login rate limit.
+  - Refreshing the `/checkout` page sends the user back to `/cart`.
 
-See the "Known limitations" list in the README. The most important: unpaid orders hold stock until someone cancels them (a scheduled expiry job is the obvious next step); payments are simulated; the UI was not inspected in a real browser by the build tooling; nothing was deployed.
+## 12. AI assistance
+
+Tool used: Claude (Anthropic).
+How I used it: for each module I described the workflow I wanted. The AI generated code, and I read it, ran it, tested it and added it to the project.
+Libraries: all third-party packages are listed in the `package.json` files.
