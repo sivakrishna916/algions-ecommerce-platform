@@ -108,6 +108,7 @@ async function checkout(user, { addressId, payment }, idempotencyKey) {
 
   let reserved = [];
   let created = null;
+  let cartFinalized = false;
   try {
     // A concurrent duplicate may have finished between our first lookup and acquiring the lock.
     const raced = await Order.findOne({ user: user._id, idempotencyKey });
@@ -139,20 +140,38 @@ async function checkout(user, { addressId, payment }, idempotencyKey) {
       pricing: { subtotal: pricing.subtotal, discount: pricing.discount, tax: pricing.tax, shipping: pricing.shipping, total: pricing.total },
       status: 'PLACED', paymentStatus: 'UNPAID', statusHistory: [{ status: 'PLACED', at: now, by: user._id, note: 'Order placed' }],
     });
+
+    // Empty the cart and release its lock in ONE atomic write. A different-key
+    // checkout can only acquire the lock after the ordered cart is already empty.
+    const finalized = await Cart.updateOne(
+      { _id: cartLocked._id, checkoutLockedAt: cartLocked.checkoutLockedAt },
+      { $set: { items: [] }, $unset: { couponCode: 1, checkoutLockedAt: 1 } },
+    );
+    if (finalized.modifiedCount !== 1) {
+      throw conflict('CHECKOUT_LOCK_LOST', 'Checkout lock expired before the cart could be finalized. Please retry.');
+    }
+    cartFinalized = true;
   } catch (err) {
-    if (reserved.length) await inventory.releaseAll(reserved); // never leave stock reserved without an order
+    // If an order was inserted but the cart could not be finalized, remove that
+    // uncommitted order and compensate stock before another checkout can proceed.
+    if (created) await Order.deleteOne({ _id: created._id });
+    if (reserved.length) await inventory.releaseAll(reserved);
     if (err && err.code === 11000) {
       const dup = await Order.findOne({ user: user._id, idempotencyKey });
       if (dup) return replay(user, dup);
     }
     throw err;
   } finally {
-    // The lock is ALWAYS released, on success, replay and every error path.
-    await Cart.updateOne({ _id: cartLocked._id }, { $unset: { checkoutLockedAt: 1 } });
+    // Only release the lock if the atomic cart-finalize operation did not do so.
+    // Match the timestamp we acquired so an expired lock cannot clear a newer one.
+    if (!cartFinalized) {
+      await Cart.updateOne(
+        { _id: cartLocked._id, checkoutLockedAt: cartLocked.checkoutLockedAt },
+        { $unset: { checkoutLockedAt: 1 } },
+      );
+    }
   }
 
-  // Order exists → empty the cart (only reached when this request created the order).
-  await Cart.updateOne({ _id: cartLocked._id }, { $set: { items: [] }, $unset: { couponCode: 1 } });
   await audit.record(user, 'order.placed', 'Order', created._id, `Order ${created.orderNumber} placed`, { total: created.pricing.total, items: created.items.length });
 
   const outcome = await attemptPayment(created, user, payment);

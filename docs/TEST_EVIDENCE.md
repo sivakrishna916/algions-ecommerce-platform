@@ -1,7 +1,7 @@
 # Test Evidence
 
 **Project:** Algions Store (E-Commerce Platform)  
-**Commit tested:** `6438034`  
+**Commit tested:** `7f12516`  
 **Environment:** Node.js `v22.23.4`, Mongosh `2.14.1` (standalone MongoDB, no replica set), Jest 30 + Supertest, Vitest 5 + Testing Library.
 
 ## 1. Backend Tests

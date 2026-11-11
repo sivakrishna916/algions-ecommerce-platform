@@ -175,6 +175,66 @@ describe('AT3 — repeated checkout requests do not create duplicate orders', ()
     expect(await stockOf(p)).toBe(9);
   });
 
+  test('CONCURRENCY: a second key cannot enter between cart finalization and lock release', async () => {
+    const p = await makeProduct(cat, { price: 150000, stock: 10 });
+    const { token, addressId } = await newCustomer('cart-finalize-race@test.dev');
+    await addToCart(token, p, 1);
+    const user = (await api().get('/api/auth/me').set(auth(token))).body.data.user;
+
+    let signalFinalized;
+    let continueFirst;
+    const cartFinalized = new Promise((resolve) => { signalFinalized = resolve; });
+    const pause = new Promise((resolve) => { continueFirst = resolve; });
+    let pausedOnce = false;
+    const originalUpdateOne = Cart.updateOne.bind(Cart);
+    const updateSpy = jest.spyOn(Cart, 'updateOne').mockImplementation(async (...args) => {
+      const result = await originalUpdateOne(...args);
+      if (!pausedOnce && args[1]?.$unset?.checkoutLockedAt) {
+        pausedOnce = true;
+        signalFinalized();
+        await pause;
+      }
+      return result;
+    });
+
+    let firstPromise;
+    let first;
+    let second;
+    try {
+      firstPromise = checkout(token, addressId, { key: newKey() });
+
+      // Do not wait forever if checkout returns an error before finalizing the cart.
+      const firstStep = await Promise.race([
+        cartFinalized.then(() => ({ type: 'cart-finalized' })),
+        firstPromise.then(
+          (response) => ({ type: 'completed-early', response }),
+          (error) => ({ type: 'rejected-early', error })
+        ),
+      ]);
+
+      if (firstStep.type !== 'cart-finalized') {
+        const detail = firstStep.response?.body || firstStep.error?.message || firstStep.type;
+        throw new Error(`First checkout did not reach cart finalization: ${JSON.stringify(detail)}`);
+      }
+
+      // The first request has atomically emptied the cart and released its lock,
+      // but is paused before returning. A new key must see an empty cart.
+      second = await checkout(token, addressId, { key: newKey() });
+      continueFirst();
+      first = await firstPromise;
+    } finally {
+      continueFirst();
+      updateSpy.mockRestore();
+      if (firstPromise) await firstPromise;
+    }
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(422);
+    expect(second.body.error.code).toBe('CART_EMPTY');
+    expect(await Order.countDocuments({ user: user._id })).toBe(1);
+    expect(await stockOf(p)).toBe(9);
+  });
+
   test('a different key after the cart was emptied cannot create an order from nothing', async () => {
     const p = await makeProduct(cat, { stock: 10 });
     const { token, addressId } = await newCustomer('empty@test.dev');

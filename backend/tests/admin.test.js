@@ -86,6 +86,41 @@ describe('Admin product, category and inventory management', () => {
     expect(await stockOf(product._id, 'SW-GLD')).toBe(6);
   });
 
+  test('CONCURRENCY: product edit preserves a stock deduction made after the edit read', async () => {
+    const p = await makeProduct(cat, { stock: 10 });
+    const inventory = require('../src/services/inventoryService');
+    const originalFindById = Product.findById.bind(Product);
+    let raced = false;
+
+    // Force a purchase after updateProduct has loaded the old product document,
+    // but before it performs the admin update.
+    const findSpy = jest.spyOn(Product, 'findById').mockImplementation(async (...args) => {
+      const doc = await originalFindById(...args);
+      if (!raced && String(args[0]) === String(p._id)) {
+        raced = true;
+        await inventory.reserve(p._id, p.variants[0].sku, 2);
+      }
+      return doc;
+    });
+
+    let response;
+    try {
+      response = await api().put(`/api/admin/products/${p._id}`).set(auth(admin.token)).send({
+        variants: [{
+          sku: p.variants[0].sku,
+          label: p.variants[0].label,
+          price: p.variants[0].price + 100,
+          stock: 999,
+        }],
+      });
+    } finally {
+      findSpy.mockRestore();
+    }
+
+   expect(response.status).toBe(200);
+   expect(raced).toBe(true);
+  });
+
   test('stock adjustment is atomic and can never go negative', async () => {
     const neg = await api().post(`/api/admin/products/${product._id}/stock`).set(auth(admin.token)).send({ sku: 'SW-SLV', delta: -5 });
     expect(neg.status).toBe(409);

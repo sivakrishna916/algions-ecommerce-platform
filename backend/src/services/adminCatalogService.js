@@ -52,20 +52,82 @@ async function createProduct(admin, data) {
  * changed because of orders placed while the admin was editing. New SKUs start with the supplied stock.
  */
 async function updateProduct(admin, id, patch) {
-  const product = await Product.findById(id);
-  if (!product) throw notFound('Product');
+  const current = await Product.findById(id);
+  if (!current) throw notFound('Product');
   if (patch.category) await assertCategory(patch.category);
 
-  const before = { name: product.name, isActive: product.isActive };
+  const before = { name: current.name, isActive: current.isActive };
+  let product;
+
   if (patch.variants) {
-    const existing = new Map(product.variants.map((v) => [v.sku, v]));
-    patch.variants = patch.variants.map((v) => {
-      const sku = v.sku.toUpperCase();
-      return existing.has(sku) ? { ...v, sku, stock: existing.get(sku).stock } : { ...v, sku };
-    });
+    // Use a single atomic update pipeline. Existing SKU stock is read from the
+    // document at write time, not from the potentially stale document loaded
+    // above. Inventory $inc operations therefore cannot be overwritten by an
+    // admin edit that was opened before a customer placed an order.
+    const incomingVariants = patch.variants.map((variant) => ({
+      ...variant,
+      sku: variant.sku.toUpperCase(),
+    }));
+    const fields = Object.fromEntries(
+      Object.entries(patch)
+        .filter(([key]) => key !== 'variants')
+        .map(([key, value]) => [key, { $literal: value }]),
+    );
+
+    product = await Product.findOneAndUpdate(
+      { _id: id },
+      [
+        {
+          $set: {
+            ...fields,
+            variants: {
+              $map: {
+                input: { $literal: incomingVariants },
+                as: 'incoming',
+                in: {
+                  $let: {
+                    vars: {
+                      existing: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: { $ifNull: ['$variants', []] },
+                              as: 'stored',
+                              cond: { $eq: ['$$stored.sku', '$$incoming.sku'] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                    in: {
+                      $mergeObjects: [
+                        '$$incoming',
+                        { stock: { $ifNull: ['$$existing.stock', '$$incoming.stock'] } },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        {
+          $set: {
+            minPrice: {
+              $min: { $map: { input: '$variants', as: 'variant', in: '$$variant.price' } },
+            },
+          },
+        },
+      ],
+      { new: true },
+    );
+  } else {
+    // Non-variant edits do not write the variants array and cannot overwrite stock.
+    product = await Product.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true });
   }
-  product.set(patch);
-  await product.save();
+
+  if (!product) throw notFound('Product');
   const changed = Object.keys(patch);
   await audit.record(admin, 'product.updated', 'Product', product._id, `Updated product "${product.name}" (${changed.join(', ')})`, { changed, before });
   return product;
