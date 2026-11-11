@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
@@ -51,13 +52,16 @@ export default function Cart() {
                     <p className="font-bold">{formatMoney(it.lineTotal)}</p>
                   </div>
                   {it.issue && <p role="alert" className="mt-1 text-xs font-semibold text-amber-700">{ISSUE[it.issue]}{it.issue === 'INSUFFICIENT_STOCK' && ` (only ${it.stock} available)`}</p>}
-                  <div className="mt-auto flex items-center justify-between pt-3">
+                  <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-3">
                     <div className="flex items-center rounded-lg border border-slate-300" role="group" aria-label={`Quantity for ${it.name}`}>
                       <button className="px-2.5 py-1 disabled:opacity-40" aria-label="Decrease quantity" disabled={it.quantity <= 1 || busyKey === key} onClick={() => run(key, () => setQty(it.product, it.sku, it.quantity - 1))}>−</button>
                       <span className="w-8 text-center text-sm font-semibold">{it.quantity}</span>
                       <button className="px-2.5 py-1 disabled:opacity-40" aria-label="Increase quantity" disabled={it.quantity >= Math.min(10, it.stock) || busyKey === key} onClick={() => run(key, () => setQty(it.product, it.sku, it.quantity + 1))}>+</button>
                     </div>
-                    <div className="flex items-center gap-3 text-sm"><span className="text-ink-500">{formatMoney(it.unitPrice)} each</span><button className="font-semibold text-rose-600 hover:underline" disabled={busyKey === key} onClick={() => run(key, async () => { await remove(it.product, it.sku); toast.info('Item removed'); })}>Remove</button></div>
+                    <div className="flex w-full items-center justify-between gap-2 text-xs sm:w-auto sm:justify-end sm:gap-3 sm:text-sm">
+                      <span className="text-ink-500">{formatMoney(it.unitPrice)} each</span>
+                      <button className="font-semibold text-rose-600 hover:underline" disabled={busyKey === key} onClick={() => run(key, async () => { await remove(it.product, it.sku); toast.info('Item removed'); })}>Remove</button>
+                    </div>
                   </div>
                 </div>
               </li>
