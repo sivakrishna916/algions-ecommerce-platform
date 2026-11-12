@@ -1,18 +1,31 @@
 # Test Evidence
 
-**Project:** Algions Store (E-Commerce Platform)  
-**Commit tested:** `7f12516`  
-**Environment:** Node.js `v22.23.4`, Mongosh `2.14.1` (standalone MongoDB, no replica set), Jest 30 + Supertest, Vitest 5 + Testing Library.
+## Contents
+
+1. Backend Tests: command and result for the backend suite (8 suites, 111 tests).
+2. Where Each Acceptance Test Is Proven: which test file covers each acceptance test.
+3. Concurrency Test Verification: evidence that the stock and checkout concurrency tests can fail.
+4. Negative Cases Covered: invalid input, permission and conflict cases.
+5. Frontend Tests: unit tests and the journey tests, with the E2E setup.
+6. Manual Browser Verification: desktop and mobile observations.
+7. Problems Found and Fixed During Development.
+8. Known Gaps in This Evidence: what the tests do not prove.
+
+**Project:** Algions Store (E-Commerce Platform)\
+&#x20;**Source state tested:** working tree after the category ObjectId fix and regression test (not yet committed)\
+&#x20;**Environment:** Node.js `v22.23.4`, Mongosh `2.14.1` (standalone MongoDB, no replica set), Jest 30 + Supertest, Vitest 5 + Testing Library. The MongoDB server version was not recorded for the original run; a later verification run of the same suite used standalone MongoDB 8.3.7.
 
 ## 1. Backend Tests
 
 **Command:** `cd backend && npm test`
 
-**Actual output:**
+**Result:**
+
+text
 
 ```text
 PASS tests/admin.test.js
-PASS tests/orders.test.js (5.326 s)
+PASS tests/orders.test.js
 PASS tests/docs.test.js
 PASS tests/cart.test.js
 PASS tests/payment-race.test.js
@@ -21,25 +34,24 @@ PASS tests/catalog.test.js
 PASS tests/unit.test.js
 
 Test Suites: 8 passed, 8 total
-Tests:       108 passed, 108 total
-Snapshots:   0 total
-Time:        15.497 s, estimated 18 s
-Ran all test suites.
+Tests:       111 passed, 111 total
 ```
+
+The suite now contains 111 tests. The latest run includes the two concurrency tests and a regression test for admin product edits preserving the category ObjectId and storefront visibility.
 
 The tests use a separate database (`algions_ecommerce_test`), which is dropped before and after the test run. They call the Express application through Supertest and use a real MongoDB instance. The tests are not mocked, allowing database features such as unique indexes and atomic updates to be tested.
 
-Jest printed a warning about open asynchronous handles after the tests completed. All 108 tests passed successfully.
+Jest printed a warning about open asynchronous handles after the tests completed. All 111 tests passed successfully.
 
 ## 2. Where Each Acceptance Test Is Proven
 
-| Acceptance test | Test file(s) | What the tests check |
-|---|---|---|
-| AT1: Place an order end to end | `orders.test.js` | Search, add to cart, checkout, payment, stock change and order history |
-| AT2: Stock re-checked, never negative | `orders.test.js`, `admin.test.js` | Stale cart is refused; multi-item order is all-or-nothing; 8 buyers for 3 units give exactly 3 orders; 10 simultaneous stock reductions on stock of 4 give exactly 4 successes |
-| AT3: No duplicate orders | `orders.test.js` | Same key sent twice returns the same order; 6 simultaneous identical requests give 1 order; two different keys for one cart give 1 order |
-| AT4: Failed payment and cancellation | `orders.test.js`, `payment-race.test.js` | Declined card leaves order Placed/Unpaid and retry pays it; paying twice charges once; 3 simultaneous cancellations restore stock once; cancelling a paid order refunds it; payment finishing after cancellation is reversed |
-| AT5: Admin protection and reports | `admin.test.js` | 12 admin endpoints return 401 without a token and 403 for a customer; forged token rejected; demoted admin loses access immediately; dashboard totals match an independent calculation; reconciliation balances and turns red when a payment record is deleted |
+| Acceptance test                       | Test file(s)                             | What the tests check                                                                                                                                                                                                                                                                                              |
+| ------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AT1: Place an order end to end        | `orders.test.js`                         | Search, add to cart, checkout, payment, stock change and order history                                                                                                                                                                                                                                            |
+| AT2: Stock re-checked, never negative | `orders.test.js`, `admin.test.js`        | Stale cart is refused; multi-item order is all-or-nothing; 8 buyers for 3 units give exactly 3 orders; 10 simultaneous stock reductions on stock of 4 give exactly 4 successes; an admin product edit racing with a purchase succeeds (forced interleaving; the final stock value is not asserted, see Section 8); a separate regression test checks category ObjectId storage and storefront visibility after an edit |
+| AT3: No duplicate orders              | `orders.test.js`                         | Same key sent twice returns the same order; 6 simultaneous identical requests give 1 order; two different keys for one cart give 1 order; a forced-interleaving test shows a second key arriving right after the first request empties the cart gets `CART_EMPTY` and creates no order                            |
+| AT4: Failed payment and cancellation  | `orders.test.js`, `payment-race.test.js` | Declined card leaves order Placed/Unpaid and retry pays it; paying twice charges once; 3 simultaneous cancellations restore stock once; cancelling a paid order refunds it; payment finishing after cancellation is reversed                                                                                      |
+| AT5: Admin protection and reports     | `admin.test.js`                          | 12 admin endpoints return 401 without a token and 403 for a customer; forged token rejected; demoted admin loses access immediately; dashboard totals match an independent calculation; reconciliation balances and turns red when a payment record is deleted                                                    |
 
 ## 3. Concurrency Test Verification
 
@@ -47,11 +59,15 @@ The stock guard (`stock: { $gte: qty }`) in `inventoryService.reserve` prevents 
 
 If this guard is removed, the 8-buyer concurrency test fails with:
 
+text
+
 ```text
 Expected length: 3, Received length: 8
 ```
 
 This demonstrates that the test checks whether concurrent orders can exceed available stock. With the guard in place, the test passes.
+
+The checkout lock test, "a second key cannot enter between cart finalization and lock release", pauses the first checkout immediately after its cart-finalising write and then sends a second checkout with a new key. It expects `422 CART_EMPTY`, exactly one order and stock reduced once. Restoring the earlier `orderService.js`, which released the lock before emptying the cart, makes this test fail with `Expected: 422, Received: 201`.
 
 ## 4. Negative Cases Covered
 
@@ -71,6 +87,9 @@ The backend tests also cover:
 - Malformed JSON and unknown routes.
 - Regex characters in search.
 - Disabled accounts.
+- A second checkout with a different idempotency key after the cart has been emptied.
+- An admin product edit racing with a purchase (response only; the final stock value is not asserted).
+- An admin product edit with variants preserves the category as an ObjectId and keeps the product visible in storefront search and category filtering.
 
 ## 5. Frontend Tests
 
@@ -79,6 +98,8 @@ The backend tests also cover:
 The frontend has 9 unit tests. The 5 journey tests are skipped when the backend is not running with the E2E configuration.
 
 **Unit test result:**
+
+text
 
 ```text
 RUN  v5.1.0
@@ -99,6 +120,8 @@ The journey tests were run with a separate E2E database and a running backend.
 
 **Seed the database:**
 
+powershell
+
 ```powershell
 cd backend
 $env:MONGO_URI="mongodb://127.0.0.1:27017/algions_e2e"
@@ -109,6 +132,8 @@ The seed operation completed successfully with 5 categories, 24 products, 4 user
 
 **Start the backend:**
 
+powershell
+
 ```powershell
 $env:PORT="5055"
 node src/server.js
@@ -118,6 +143,8 @@ The API started at `http://localhost:5055`.
 
 **Run the frontend E2E tests in a second terminal:**
 
+powershell
+
 ```powershell
 cd frontend
 $env:E2E_API_URL="http://localhost:5055/api"
@@ -125,6 +152,8 @@ npm.cmd test
 ```
 
 **Actual E2E test output:**
+
+text
 
 ```text
 RUN  v5.1.0
@@ -154,11 +183,13 @@ The admin journey tests printed Recharts warnings about zero-width and zero-heig
 I opened the application in Chrome and checked the storefront at desktop and responsive mobile widths.
 
 **Desktop homepage:**
+
 - Header, search bar, hero section and action buttons displayed correctly.
 - Category section started below the hero section.
 - No obvious horizontal overflow or overlapping elements were visible.
 
 **Mobile homepage (390px):**
+
 - Navigation and search bar adapted to separate rows.
 - Hero heading and promotional text wrapped correctly.
 - Action buttons remained visible.
@@ -166,23 +197,27 @@ I opened the application in Chrome and checked the storefront at desktop and res
 - Sign up link was not visible in the mobile header.
 
 **Mobile category section (390px):**
+
 - All five category cards displayed in a two-column grid.
 - Icons, category names and product counts were readable.
 - Spacing between cards appeared consistent.
 
 **Mobile product listing (390px):**
+
 - Product cards displayed in a two-column grid.
 - Product images, discount labels, names and prices were visible.
 - No obvious horizontal overflow was observed in the screenshots.
 
 **Mobile product details (390px):**
+
 - Product image, title, price and description adapted to the mobile viewport.
 - No obvious clipping or horizontal overflow was observed in the visible section.
 
 **Mobile cart (390px):**
+
 - Cart items, quantity controls and order summary were visible.
 - Product prices and Remove controls extended beyond the visible card area.
-- This is a mobile layout issue that remains to be addressed.
+- This is a mobile layout issue noted at the time. It has not been re-checked in a browser since later layout changes.
 
 The checkout page and admin dashboard were covered by automated journey tests, but were not separately recorded as manual browser checks.
 
@@ -192,4 +227,13 @@ The following problems were found during development and fixed:
 
 1. After successful checkout, the user was redirected to "Your cart is empty" instead of the order page.
 2. Add to cart could send a logged-in user to the login page if clicked before the saved session finished loading.
+3. A product edit could overwrite stock changed by an order between the edit's read and its save. The edit is now one atomic update that takes the stock of existing SKUs from the stored document (`adminCatalogService.updateProduct`).
+4. A second checkout with a different idempotency key could create a duplicate order in the gap between releasing the cart lock and emptying the cart. The cart is now emptied and the lock released in one conditional write (`orderService.checkout`).
+5. After the stock-safe product edit was introduced, an edit that sent both `category` and `variants` stored `category` as a string, so the product disappeared from the storefront list and search. `updateProduct` now casts `category` to an ObjectId before the pipeline update. This was checked manually with the admin form and is now covered by an automated regression test that checks the raw BSON type, storefront search, category filtering and preservation of existing stock. The full backend suite passes (111 tests).
 
+## 8. Known Gaps in This Evidence
+
+- The admin-edit concurrency test asserts only the HTTP status and that the interleaving happened. It does not check the final stock, and it would also pass against the previous implementation. It is a smoke test of the update path, not proof of the fix.
+- The category-cast fix is now covered by the regression test in `admin.test.js`. The separate admin-edit concurrency test still asserts only the response status and that the forced interleaving occurred; it does not assert the final stock value.
+- The five frontend journey tests are skipped by default and run only with `E2E_API_URL` set.
+- There is no CI pipeline; every result above comes from local runs.

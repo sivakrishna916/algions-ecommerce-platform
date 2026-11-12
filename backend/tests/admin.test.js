@@ -1,3 +1,4 @@
+
 const { api, setupDb, teardownDb, createAdmin, registerCustomer, auth } = require('./helpers');
 const { makeCategory, makeProduct } = require('./factories');
 const { addAddress, addToCart, checkout, DECLINED_CARD } = require('./shopHelpers');
@@ -86,6 +87,59 @@ describe('Admin product, category and inventory management', () => {
     expect(await stockOf(product._id, 'SW-GLD')).toBe(6);
   });
 
+  // REGRESSION TEST: category must remain an ObjectId after an admin product edit.
+  test('REGRESSION: editing a product preserves ObjectId category and storefront visibility', async () => {
+    const p = await makeProduct(cat, {
+      name: 'Pulse Wireless Earbuds',
+      brand: 'Pulse',
+      stock: 10,
+    });
+
+    const response = await api()
+      .put(`/api/admin/products/${p._id}`)
+      .set(auth(admin.token))
+      .send({
+        name: 'Pulse Wireless Earbuds',
+        description: 'Wireless earbuds',
+        brand: 'Pulse',
+        category: String(cat._id),
+        images: ['/products/pulse-wireless-earbuds.svg'],
+        tags: ['audio', 'bluetooth'],
+        isActive: true,
+        variants: p.variants.map((v) => ({
+          sku: v.sku,
+          label: v.label,
+          price: v.price,
+          mrp: v.mrp,
+          stock: 999,
+        })),
+      });
+
+    expect(response.status).toBe(200);
+
+    // Check the actual stored BSON type, without Mongoose casting.
+    const raw = await Product.collection.findOne({ _id: p._id });
+    expect(raw.category._bsontype).toBe('ObjectId');
+    expect(String(raw.category)).toBe(String(cat._id));
+
+    // Existing stock must not be overwritten by the edit form.
+    expect(await stockOf(p._id, p.variants[0].sku)).toBe(10);
+
+    // Product must remain visible in storefront search.
+    const search = await api().get('/api/catalog/products?q=Pulse');
+    expect(search.status).toBe(200);
+    expect(search.body.data.products.map((item) => item.name))
+      .toContain('Pulse Wireless Earbuds');
+
+    // Product must remain visible under its category.
+    const categoryResults = await api()
+      .get(`/api/catalog/products?category=${cat.slug}`);
+
+    expect(categoryResults.status).toBe(200);
+    expect(categoryResults.body.data.products.map((item) => item.name))
+      .toContain('Pulse Wireless Earbuds');
+  });
+
   test('CONCURRENCY: product edit preserves a stock deduction made after the edit read', async () => {
     const p = await makeProduct(cat, { stock: 10 });
     const inventory = require('../src/services/inventoryService');
@@ -117,8 +171,8 @@ describe('Admin product, category and inventory management', () => {
       findSpy.mockRestore();
     }
 
-   expect(response.status).toBe(200);
-   expect(raced).toBe(true);
+    expect(response.status).toBe(200);
+    expect(raced).toBe(true);
   });
 
   test('stock adjustment is atomic and can never go negative', async () => {

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const Category = require('../models/Category');
 const inventory = require('./inventoryService');
@@ -71,7 +72,9 @@ async function updateProduct(admin, id, patch) {
     const fields = Object.fromEntries(
       Object.entries(patch)
         .filter(([key]) => key !== 'variants')
-        .map(([key, value]) => [key, { $literal: value }]),
+        // Aggregation-pipeline updates bypass Mongoose casting, so ObjectId fields must be cast by hand.
+        // Otherwise `category` would be stored as a string and the product would stop matching category filters.
+        .map(([key, value]) => [key, { $literal: key === 'category' ? new mongoose.Types.ObjectId(value) : value }]),
     );
 
     product = await Product.findOneAndUpdate(
