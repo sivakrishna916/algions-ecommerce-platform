@@ -231,8 +231,8 @@ The following credentials are intended for local demonstration with seeded data.
 
 | Role     | Email                | Password         |
 | -------- | -------------------- | ---------------- |
-| Admin    | `admin@demo.test`    | `Admin@2415`    |
-| Customer | `customer@demo.test` | `Customer@12345` |
+| Admin    | `admin@demo.test`    | `Admin@12345`    |
+| Customer | `customer@demo.test` | `Customer@2415` |
 
 ### Simulated Payment Testing
 
@@ -331,6 +331,7 @@ For detailed test results and manual browser notes, refer to:
 Swagger UI is available locally at:
 
 `http://localhost:5000/api/docs`
+'https://algions-ecommerce-api.onrender.com/api/docs'
 
 OpenAPI JSON:
 
@@ -389,6 +390,7 @@ Additional project documentation is available in the `docs/` directory:
 - Rate limiting is currently focused on login.
 - Product images are generated illustrations rather than real product photography.
 - Email and SMS notifications are not integrated.
+- The application is deployed on Render with MongoDB Atlas. 
 
 ## 13. Project Objective
 
