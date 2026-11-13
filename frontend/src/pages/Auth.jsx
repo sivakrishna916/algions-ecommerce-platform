@@ -46,7 +46,7 @@ export function Login() {
       </form>
       <div className="mt-6 rounded-lg bg-slate-50 p-3 text-xs text-ink-500">
         <p className="font-semibold text-ink-700">Demo accounts (dummy data)</p>
-        <button type="button" className="mt-1 block underline" onClick={() => setForm({ email: 'customer@demo.test', password: 'Customer@12345' })}>Fill customer login</button>
+        <button type="button" className="mt-1 block underline" onClick={() => setForm({ email: 'customer@demo.test', password: 'Customer@2415' })}>Fill customer login</button>
         <button type="button" className="block underline" onClick={() => setForm({ email: 'admin@demo.test', password: 'Admin@12345' })}>Fill admin login</button>
       </div>
     </AuthShell>
