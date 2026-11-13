@@ -25,7 +25,7 @@ const DAY = 86400000;
 async function seedUsers() {
   const specs = [
     { name: 'Demo Admin', email: env('SEED_ADMIN_EMAIL', 'admin@demo.test'), password: env('SEED_ADMIN_PASSWORD', 'Admin@12345'), role: 'admin' },
-    { name: 'Demo Customer', email: env('SEED_CUSTOMER_EMAIL', 'customer@demo.test'), password: env('SEED_CUSTOMER_PASSWORD', 'Customer@12345'), role: 'customer' },
+    { name: 'Demo Customer', email: env('SEED_CUSTOMER_EMAIL', 'customer@demo.test'), password: env('SEED_CUSTOMER_PASSWORD', 'Customer@2415'), role: 'customer' },
     { name: 'Riya Sharma', email: 'riya@demo.test', password: 'Customer@12345', role: 'customer' },
     { name: 'Arjun Mehta', email: 'arjun@demo.test', password: 'Customer@12345', role: 'customer' },
   ];
