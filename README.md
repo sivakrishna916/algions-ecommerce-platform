@@ -4,6 +4,19 @@ A full-stack e-commerce platform developed as part of the **ALGIONS AI LABS PRIV
 
 **Developed by:** Sivakrishna Reddy **Registration Number:** 12305362 **Repository:** [https://github.com/sivakrishna916/algions-ecommerce-platform](https://github.com/sivakrishna916/algions-ecommerce-platform)
 
+## Live Deployment
+
+The application is deployed using Render, with MongoDB Atlas as the production database.
+
+| Component | URL |
+|---|---|
+| Customer Storefront | https://algions-ecommerce-frontend.onrender.com |
+| Backend API | https://algions-ecommerce-api.onrender.com |
+| Backend Health Check | https://algions-ecommerce-api.onrender.com/api/health |
+| Swagger API Documentation | https://algions-ecommerce-api.onrender.com/api/docs |
+
+The frontend communicates with the deployed backend through the `VITE_API_URL` environment variable. The backend connects to MongoDB Atlas using environment variables configured in Render.
+
 Algions Store is a MERN-based e-commerce application featuring a customer storefront and a separate admin console. The project focuses on reliable shopping workflows, inventory management, payment simulation, order processing, and backend security.
 
 ## 1. Features
@@ -218,7 +231,7 @@ The following credentials are intended for local demonstration with seeded data.
 
 | Role     | Email                | Password         |
 | -------- | -------------------- | ---------------- |
-| Admin    | `admin@demo.test`    | `Admin@12345`    |
+| Admin    | `admin@demo.test`    | `Admin@2415`    |
 | Customer | `customer@demo.test` | `Customer@12345` |
 
 ### Simulated Payment Testing
@@ -376,7 +389,6 @@ Additional project documentation is available in the `docs/` directory:
 - Rate limiting is currently focused on login.
 - Product images are generated illustrations rather than real product photography.
 - Email and SMS notifications are not integrated.
-- The application is designed for local execution and is not currently deployed.
 
 ## 13. Project Objective
 

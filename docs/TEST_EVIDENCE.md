@@ -12,7 +12,7 @@
 8. Known Gaps in This Evidence: what the tests do not prove.
 
 **Project:** Algions Store (E-Commerce Platform)\
-&#x20;**Source state tested:** working tree after the category ObjectId fix and regression test (not yet committed)\
+&#x20;**Source state tested:** working tree after the category ObjectId fix and regression test.\
 &#x20;**Environment:** Node.js `v22.23.4`, Mongosh `2.14.1` (standalone MongoDB, no replica set), Jest 30 + Supertest, Vitest 5 + Testing Library. The MongoDB server version was not recorded for the original run; a later verification run of the same suite used standalone MongoDB 8.3.7.
 
 ## 1. Backend Tests
@@ -237,3 +237,29 @@ The following problems were found during development and fixed:
 - The category-cast fix is now covered by the regression test in `admin.test.js`. The separate admin-edit concurrency test still asserts only the response status and that the forced interleaving occurred; it does not assert the final stock value.
 - The five frontend journey tests are skipped by default and run only with `E2E_API_URL` set.
 - There is no CI pipeline; every result above comes from local runs.
+
+## 9. Production Deployment Verification
+
+**Deployment platform:** Render
+
+**Production database:** MongoDB Atlas
+
+**Live URLs:**
+- Frontend: https://algions-ecommerce-frontend.onrender.com
+- Backend health: https://algions-ecommerce-api.onrender.com/api/health
+- Swagger: https://algions-ecommerce-api.onrender.com/api/docs
+
+**Manual production checks completed:**
+
+| Check | Result |
+|---|---|
+| Backend health endpoint | Passed |
+| Customer login | Passed |
+| Admin login | Passed |
+| Cart persistence after browser refresh | Passed |
+
+**Automated backend test result:**
+- Test suites: 8 passed
+- Tests: 111 passed
+
+These automated tests were executed locally. They should not be interpreted as a full automated test run against the production deployment.
