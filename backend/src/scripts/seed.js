@@ -119,6 +119,6 @@ async function seedOrders(users) {
   await Cart.deleteMany({});
   console.log(`Seed complete: ${await Category.countDocuments()} categories, ${await Product.countDocuments()} products, ${await User.countDocuments()} users, ${await Order.countDocuments()} orders.`);
   console.log(`Admin:    ${env('SEED_ADMIN_EMAIL', 'admin@demo.test')} / ${env('SEED_ADMIN_PASSWORD', 'Admin@12345')}`);
-  console.log(`Customer: ${env('SEED_CUSTOMER_EMAIL', 'customer@demo.test')} / ${env('SEED_CUSTOMER_PASSWORD', 'Customer@12345')}`);
+  console.log(`Customer: ${env('SEED_CUSTOMER_EMAIL', 'customer@demo.test')} / ${env('SEED_CUSTOMER_PASSWORD', 'Customer@2415')}`);
   await mongoose.disconnect();
 })().catch((e) => { console.error('Seed failed:', e); process.exit(1); });
